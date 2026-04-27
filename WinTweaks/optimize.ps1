@@ -288,7 +288,7 @@ if ($cs2) {
 
 $foregroundPath = "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl"
 Ensure-RegistryPath $foregroundPath
-Set-ItemProperty -Path $foregroundPath -Name "Win32PrioritySeparation" -Value 38 -Type DWord -Force
+Set-ItemProperty -Path $foregroundPath -Name "Win32PrioritySeparation" -Value 40 -Type DWord -Force
 Write-OK "Foreground Boost: MAX"
 
 # ========================================================
