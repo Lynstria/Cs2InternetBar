@@ -1,7 +1,7 @@
 # ==============================================================================
 # Project: CS2 InternetBar Optimizer (CIBO)
 # Component: Orchestrator Pipeline (Main.ps1)
-# Version: 1.2.0-Fixed (27/04/2026) - Fixed CS2 path + optimize check
+# Version: 1.2.2-Fixed (27/04/2026) - Stage 5 FORCED WinTweaks
 # ==============================================================================
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "                  VER 1.2.0 - FIXED                   " -ForegroundColor Green
+Write-Host "                  VER 1.2.2 - FORCED STAGE 5          " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 try {
@@ -22,7 +22,7 @@ try {
     if (-not $steamRegistry) { throw "SteamPath not found in Registry!" }
 
     $steamRoot = $steamRegistry.SteamPath -replace '/', '\'
-    $cs2Base   = Join-Path $steamRoot "steamapps\common\Counter-Strike 2"   # ← FIXED: Tên folder đúng 2026
+    $cs2Base   = Join-Path $steamRoot "steamapps\common\Counter-Strike Global Offensive"
     $cfgPath   = Join-Path $cs2Base "game\csgo\cfg"
     $exePath   = Join-Path $cs2Base "game\bin\win64\cs2.exe"
 
@@ -48,19 +48,14 @@ try {
         }
     }
 
-    # --- STAGE 5: WinTweaks (chỉ chạy nếu file tồn tại) ---
-    Write-Host "[*] Checking WinTweaks/optimize.ps1..." -ForegroundColor Yellow
-    $optimizeUrl = "$REPO_RAW/WinTweaks/optimize.ps1"
+    # --- STAGE 5: WinTweaks (BẮT BUỘC - luôn chạy) ---
+    Write-Host "[*] Streaming WinTweaks/optimize.ps1 (FORCED)..." -ForegroundColor Yellow
     try {
-        $optimizeContent = Invoke-RestMethod -Uri $optimizeUrl -TimeoutSec 10
-        if ($optimizeContent.Trim() -ne "") {
-            Invoke-Expression $optimizeContent
-            Write-Host "[SUCCESS] WinTweaks executed!" -ForegroundColor Green
-        } else {
-            Write-Host "[SKIP] optimize.ps1 is empty → skipped" -ForegroundColor Gray
-        }
+        $optimizeContent = Invoke-RestMethod -Uri "$REPO_RAW/WinTweaks/optimize.ps1" -TimeoutSec 10
+        Invoke-Expression $optimizeContent
+        Write-Host "[SUCCESS] WinTweaks executed!" -ForegroundColor Green
     } catch {
-        Write-Host "[INFO] WinTweaks/optimize.ps1 chưa có hoặc chưa push. Bỏ qua bước này." -ForegroundColor Gray
+        throw "CRITICAL: Failed to load WinTweaks/optimize.ps1 from repository! (This step is now mandatory)"
     }
 
 } catch {
