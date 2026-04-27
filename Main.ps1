@@ -5,10 +5,10 @@ Write-Host "======================================================" -ForegroundC
 Write-Host "          M - POWERSHELL STREAMING PIPELINE" -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 
-# Bước 1: Hỏi thực khách (Y/N)
+# Bước 1: Hỏi (Y/N)
 $choice = Read-Host "Ban co muon bat Override High DPI cho CS2 khong? (Y/N)"
 
-# Bước 2: Bồi bàn tìm đường dẫn Steam & CS2 từ Registry
+# Bước 2: tìm đường dẫn Steam & CS2 từ Registry
 $steamPath = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name "SteamPath" -ErrorAction SilentlyContinue
 if (-not $steamPath) {
     Write-Host "[!] Khong tim thay Steam. Huy quy trinh." -ForegroundColor Red
@@ -42,5 +42,5 @@ Write-Host "[*] Dang thuc thi goi toi uu tu RAM..." -ForegroundColor Yellow
 $optimizeScript = Invoke-RestMethod -Uri "$REPO_RAW/WinTweaks/optimize.ps1"
 Invoke-Expression $optimizeScript
 
-Write-Host "`n[!] HOAN THANH - MON AN DA PHUC VU XONG!" -ForegroundColor Cyan
+Write-Host "`n[!] HOAN THANH" -ForegroundColor Cyan
 Start-Sleep -Seconds 3
