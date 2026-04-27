@@ -1,79 +1,74 @@
 # ==============================================================================
 # Project: CS2 InternetBar Optimizer (CIBO)
 # Component: Orchestrator Pipeline (Main.ps1)
-# Version: 1.1.0-Stable
+# Version: 1.2.0-Fixed (27/04/2026) - Fixed CS2 path + optimize check
 # ==============================================================================
 
-# --- Global Source Configuration ---
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
-$ErrorActionPreference = "Stop" # Cấu hình để bắt mọi Exception phát sinh
+$ErrorActionPreference = "Stop"
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
+Write-Host "                  VER 1.2.0 - FIXED                   " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 try {
-    # --- STAGE 1: User Intent Acquisition ---
-    $choice = Read-Host "[?] Deploy High DPI Scaling Override (Application) for CS2? (Y/N)"
+    # --- STAGE 1: User Intent ---
+    $choice = Read-Host "[?] Deploy High DPI Scaling Override for CS2? (Y/N)"
 
-    # --- STAGE 2: Environment Discovery & Registry Analysis ---
-    Write-Host "[*] Initializing Environment Discovery..." -ForegroundColor Gray
+    # --- STAGE 2: Environment Discovery ---
+    Write-Host "[*] Detecting Steam & CS2 folder..." -ForegroundColor Gray
     $steamRegistry = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name "SteamPath" -ErrorAction SilentlyContinue
-
-    if (-not $steamRegistry) {
-        throw "Registry Error: SteamPath not found. Ensure Steam is installed correctly."
-    }
+    if (-not $steamRegistry) { throw "SteamPath not found in Registry!" }
 
     $steamRoot = $steamRegistry.SteamPath -replace '/', '\'
-    $cs2Base   = Join-Path $steamRoot "steamapps\common\Counter-Strike Global Offensive"
+    $cs2Base   = Join-Path $steamRoot "steamapps\common\Counter-Strike 2"   # ← FIXED: Tên folder đúng 2026
     $cfgPath   = Join-Path $cs2Base "game\csgo\cfg"
     $exePath   = Join-Path $cs2Base "game\bin\win64\cs2.exe"
 
-    # --- STAGE 3: Artifact Deployment (I/O Operations) ---
+    Write-Host "[+] CS2 folder detected: $cs2Base" -ForegroundColor Green
+
+    # --- STAGE 3: Deploy Config ---
     if (Test-Path $cfgPath) {
-        Write-Host "[*] Fetching Config Artifacts from Remote Repository..." -ForegroundColor Yellow
-        try {
-            Invoke-WebRequest -Uri "$REPO_RAW/CS2/autoexec.cfg" -OutFile "$cfgPath\autoexec.cfg" -TimeoutSec 10
-            Write-Host "[SUCCESS] Artifact 'autoexec.cfg' deployed to: $cfgPath" -ForegroundColor Green
-        } catch {
-            Write-Host "[ERROR] Failed to fetch CS2 config. Check Network/Repository URL." -ForegroundColor Red
-        }
+        Write-Host "[*] Downloading latest autoexec.cfg (VER 2026)..." -ForegroundColor Yellow
+        Invoke-WebRequest -Uri "$REPO_RAW/CS2/autoexec.cfg" -OutFile "$cfgPath\autoexec.cfg" -TimeoutSec 15
+        Write-Host "[SUCCESS] autoexec.cfg deployed!" -ForegroundColor Green
     } else {
-        Write-Host "[WARNING] Deployment Target Not Found: $cfgPath" -ForegroundColor Yellow
+        throw "CS2 cfg folder not found! Please verify CS2 is installed correctly."
     }
 
-    # --- STAGE 4: Registry Manipulation (DPI Override) ---
+    # --- STAGE 4: DPI Override ---
     if ($choice -eq "Y" -or $choice -eq "y") {
-        Write-Host "[*] Injecting Registry Keys for Application Scaling Override..." -ForegroundColor Yellow
+        Write-Host "[*] Applying DPI Scaling Override..." -ForegroundColor Yellow
         if (Test-Path $exePath) {
             $regKey = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
             if (-not (Test-Path $regKey)) { New-Item -Path $regKey -Force | Out-Null }
             New-ItemProperty -Path $regKey -Name $exePath -Value "~ DPIUNAWARE" -PropertyType String -Force | Out-Null
-            Write-Host "[SUCCESS] DPI Scaling Override applied to Process: cs2.exe" -ForegroundColor Green
-        } else {
-            Write-Host "[SKIPPED] Target Executable not found at Binary Path." -ForegroundColor Gray
+            Write-Host "[SUCCESS] DPI Override applied to cs2.exe" -ForegroundColor Green
         }
     }
 
-    # --- STAGE 5: In-Memory Script Execution (Streaming) ---
-    Write-Host "[*] Streaming 'WinTweaks/optimize.ps1' via Memory-Pipe..." -ForegroundColor Yellow
+    # --- STAGE 5: WinTweaks (chỉ chạy nếu file tồn tại) ---
+    Write-Host "[*] Checking WinTweaks/optimize.ps1..." -ForegroundColor Yellow
+    $optimizeUrl = "$REPO_RAW/WinTweaks/optimize.ps1"
     try {
-        $optimizeContent = Invoke-RestMethod -Uri "$REPO_RAW/WinTweaks/optimize.ps1"
-        if ($null -ne $optimizeContent) {
+        $optimizeContent = Invoke-RestMethod -Uri $optimizeUrl -TimeoutSec 10
+        if ($optimizeContent.Trim() -ne "") {
             Invoke-Expression $optimizeContent
-            Write-Host "[SUCCESS] Optimization Sequence Executed via IEX." -ForegroundColor Green
+            Write-Host "[SUCCESS] WinTweaks executed!" -ForegroundColor Green
+        } else {
+            Write-Host "[SKIP] optimize.ps1 is empty → skipped" -ForegroundColor Gray
         }
     } catch {
-        Write-Host "[FATAL] Pipeline Break: Unable to stream WinTweaks. Check GitHub Raw connectivity." -ForegroundColor Red
+        Write-Host "[INFO] WinTweaks/optimize.ps1 chưa có hoặc chưa push. Bỏ qua bước này." -ForegroundColor Gray
     }
 
 } catch {
-    # --- GLOBAL ERROR HANDLING ---
-    Write-Host "`n[!] CRITICAL SYSTEM ERROR: $($_.Exception.Message)" -ForegroundColor White -BackgroundColor Red
+    Write-Host "`n[!] ERROR: $($_.Exception.Message)" -ForegroundColor White -BackgroundColor Red
     Write-Host "[!] Trace: $($_.ScriptStackTrace)" -ForegroundColor Gray
 } finally {
     Write-Host "`n======================================================" -ForegroundColor Cyan
-    Write-Host " [!] PIPELINE COMPLETED - SESSION TERMINATED." -ForegroundColor Cyan
+    Write-Host " [!] CIBO PIPELINE HOÀN TẤT - READY TO PRE-FIRE" -ForegroundColor Green
     Write-Host "======================================================" -ForegroundColor Cyan
     Start-Sleep -Seconds 3
 }
