@@ -9,7 +9,7 @@ $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
 $ErrorActionPreference = "Stop" # Cấu hình để bắt mọi Exception phát sinh
 
 Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "     ⚡ CIBO CORE - LOW-LATENCY STREAMING PIPELINE ⚡" -ForegroundColor Cyan
+Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 
 try {
