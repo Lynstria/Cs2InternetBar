@@ -1,7 +1,7 @@
   CS2 InternetBar Optimizer (CIBO)
 High-Performance Pipeline for Windows Gaming Optimization
 
-!
+==========================================================================
 
 🛠 Overview
 CIBO là một giải pháp triển khai (deployment) tự động hóa theo mô hình Streaming Pipeline. Dự án được thiết kế để biến bất kỳ máy Windows "bloatware" nào thành một trạm chiến game chuyên dụng cho CS2 chỉ trong vài giây thông qua giao thức thực thi trực tiếp từ RAM.
@@ -17,11 +17,17 @@ DPI Override Automation: Tự động can thiệp Registry để kích hoạt Hi
 
 Config Sync: Đồng bộ hóa tệp cấu hình chuyên sâu (autoexec.cfg) từ GitHub Repo vào đúng thư mục game.
 
+==========================================================================
+
 🚀 Quick Start
 Mở PowerShell (Admin) và thực thi lệnh duy nhất bên dưới để bắt đầu quy trình tối ưu:
 
 PowerShell
+
 irm https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main/Main.ps1 | iex
+
+==========================================================================
+
 📁 Project Structure
 /CS2: Chứa các tệp cấu hình game (autoexec.cfg).
 
