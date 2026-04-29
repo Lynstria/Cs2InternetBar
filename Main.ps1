@@ -1,7 +1,7 @@
 # ==============================================================================
 # Project: CS2 InternetBar Optimizer (CIBO)
 # Component: Orchestrator Pipeline (Main.ps1)
-# Version: 1.3.0 (27/04/2026) - Dual Choice + Online Config Version
+# Version: 1.3.1 (Updated) - Dual Choice + Online Config Version + Process Detection
 # ==============================================================================
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "                  VER 1.3.0 - DUAL CHOICE             " -ForegroundColor Green
+Write-Host "            VER 1.3.1 - DUAL CHOICE             " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 try {
@@ -34,26 +34,50 @@ try {
     Write-Host "[?] Deploy High DPI Scaling Override for CS2? (Y/N)" -ForegroundColor Yellow
     $deployDPI = Read-Host
 
-    # --- STAGE 2: Environment Discovery ---
+    # --- STAGE 2: Environment Discovery (Process -> Registry -> Fallback) ---
     Write-Host "`n[*] Detecting Steam & CS2 folder..." -ForegroundColor Gray
-    $steamRegistry = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name "SteamPath" -ErrorAction SilentlyContinue
-    if (-not $steamRegistry) { throw "SteamPath not found in Registry!" }
+    
+    $steamRoot = $null
 
-    $steamRoot = $steamRegistry.SteamPath -replace '/', '\'
+    # Ưu tiên 1: Lấy đường dẫn từ process Steam đang chạy ngầm
+    $steamProcess = Get-CimInstance Win32_Process -Filter "Name='steam.exe'" | Select-Object -First 1
+    if ($steamProcess -and $steamProcess.ExecutablePath) {
+        $steamRoot = Split-Path -Path $steamProcess.ExecutablePath -Parent
+        Write-Host "[+] Steam detected running at: $steamRoot" -ForegroundColor DarkGreen
+    } 
+    # Ưu tiên 2: Fallback về Registry nếu không có tiến trình Steam nào đang chạy
+    else {
+        Write-Host "[!] Steam process not running. Checking Registry..." -ForegroundColor Yellow
+        $steamRegistry = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name "SteamPath" -ErrorAction SilentlyContinue
+        if ($steamRegistry) {
+            $steamRoot = $steamRegistry.SteamPath -replace '/', '\'
+            Write-Host "[+] Steam found in Registry at: $steamRoot" -ForegroundColor DarkGreen
+        }
+    }
+
+    if (-not $steamRoot) { 
+        throw "SteamPath not found anywhere (Process or Registry)!" 
+    }
+
+    # Lấy CS2 folder làm gốc và chia 2 nhánh cfg / bin
     $cs2Base   = Join-Path $steamRoot "steamapps\common\Counter-Strike Global Offensive"
     $cfgPath   = Join-Path $cs2Base "game\csgo\cfg"
     $exePath   = Join-Path $cs2Base "game\bin\win64\cs2.exe"
 
-    Write-Host "[+] CS2 folder detected: $cs2Base" -ForegroundColor Green
+    if (Test-Path $cs2Base) {
+        Write-Host "[+] CS2 folder detected: $cs2Base" -ForegroundColor Green
+    } else {
+        Write-Host "[!] Warning: CS2 folder not found at expected path. (Maybe installed in a custom Library Drive?)" -ForegroundColor Yellow
+    }
 
     # --- STAGE 3: Deploy Config (chỉ chạy nếu người dùng chọn Y) ---
     if ($deployConfig -eq "Y" -or $deployConfig -eq "y") {
         if (Test-Path $cfgPath) {
             Write-Host "[*] Downloading latest autoexec.cfg..." -ForegroundColor Yellow
             Invoke-WebRequest -Uri "$REPO_RAW/CS2/autoexec.cfg" -OutFile "$cfgPath\autoexec.cfg" -TimeoutSec 15
-            Write-Host "[SUCCESS] autoexec.cfg deployed!" -ForegroundColor Green
+            Write-Host "[SUCCESS] autoexec.cfg deployed to: $cfgPath" -ForegroundColor Green
         } else {
-            throw "CS2 cfg folder not found! Please verify CS2 is installed correctly."
+            throw "CS2 cfg folder not found at: $cfgPath! Please verify CS2 is installed correctly."
         }
     } else {
         Write-Host "[SKIP] autoexec.cfg deployment skipped by user" -ForegroundColor Gray
@@ -66,9 +90,9 @@ try {
             $regKey = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
             if (-not (Test-Path $regKey)) { New-Item -Path $regKey -Force | Out-Null }
             New-ItemProperty -Path $regKey -Name $exePath -Value "~ DPIUNAWARE" -PropertyType String -Force | Out-Null
-            Write-Host "[SUCCESS] DPI Override applied to cs2.exe" -ForegroundColor Green
+            Write-Host "[SUCCESS] DPI Override applied to: $exePath" -ForegroundColor Green
         } else {
-            Write-Host "[SKIP] cs2.exe not found → DPI override skipped" -ForegroundColor Gray
+            Write-Host "[SKIP] cs2.exe not found at $exePath → DPI override skipped" -ForegroundColor Gray
         }
     } else {
         Write-Host "[SKIP] DPI Override skipped by user" -ForegroundColor Gray
