@@ -1,7 +1,7 @@
 # ==============================================================================
 # Project: CS2 InternetBar Optimizer (CIBO)
 # Component: Orchestrator Pipeline (Main.ps1)
-# Version: 1.3.1 (Updated) - Dual Choice + Online Config Version + Process Detection
+# Version: 1.3.2 (Updated) - Added VDF Library Parser for Custom Drives
 # ==============================================================================
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "            VER 1.3.1 - DUAL CHOICE             " -ForegroundColor Green
+Write-Host "            VER 1.3.2 - DUAL CHOICE             " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 try {
@@ -28,25 +28,23 @@ try {
         Write-Host "[!] Warning: Cannot fetch config version from GitHub" -ForegroundColor Yellow
     }
 
-    # --- STAGE 1: User Intent (2 câu hỏi riêng biệt) ---
+    # --- STAGE 1: User Intent ---
     Write-Host "`n[?] Deploy autoexec.cfg (config)? (Y/N)" -ForegroundColor Yellow
     $deployConfig = Read-Host
     Write-Host "[?] Deploy High DPI Scaling Override for CS2? (Y/N)" -ForegroundColor Yellow
     $deployDPI = Read-Host
 
-    # --- STAGE 2: Environment Discovery (Process -> Registry -> Fallback) ---
+    # --- STAGE 2: Environment Discovery (Process -> Registry -> Fallback & VDF Parsing) ---
     Write-Host "`n[*] Detecting Steam & CS2 folder..." -ForegroundColor Gray
     
     $steamRoot = $null
 
-    # Ưu tiên 1: Lấy đường dẫn từ process Steam đang chạy ngầm
+    # 1. Tìm Steam đang chạy
     $steamProcess = Get-CimInstance Win32_Process -Filter "Name='steam.exe'" | Select-Object -First 1
     if ($steamProcess -and $steamProcess.ExecutablePath) {
         $steamRoot = Split-Path -Path $steamProcess.ExecutablePath -Parent
         Write-Host "[+] Steam detected running at: $steamRoot" -ForegroundColor DarkGreen
-    } 
-    # Ưu tiên 2: Fallback về Registry nếu không có tiến trình Steam nào đang chạy
-    else {
+    } else {
         Write-Host "[!] Steam process not running. Checking Registry..." -ForegroundColor Yellow
         $steamRegistry = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name "SteamPath" -ErrorAction SilentlyContinue
         if ($steamRegistry) {
@@ -55,22 +53,47 @@ try {
         }
     }
 
-    if (-not $steamRoot) { 
-        throw "SteamPath not found anywhere (Process or Registry)!" 
+    if (-not $steamRoot) { throw "SteamPath not found anywhere (Process or Registry)!" }
+
+    # 2. Quét tìm CS2 thông qua Default Path hoặc libraryfolders.vdf
+    $cs2Base = $null
+    $defaultPath = Join-Path $steamRoot "steamapps\common\Counter-Strike Global Offensive"
+
+    if (Test-Path $defaultPath) {
+        $cs2Base = $defaultPath
+    } else {
+        Write-Host "[*] CS2 not in default Steam folder. Scanning libraryfolders.vdf..." -ForegroundColor Gray
+        $vdfPath = Join-Path $steamRoot "steamapps\libraryfolders.vdf"
+        
+        if (Test-Path $vdfPath) {
+            $vdfContent = Get-Content $vdfPath
+            # Dùng Regex móc tất cả các đường dẫn thư viện từ VDF (sửa lỗi double backslash của VDF)
+            $libPaths = $vdfContent | Select-String -Pattern '"path"\s+"([^"]+)"' | ForEach-Object { 
+                $_.Matches.Groups[1].Value -replace '\\\\', '\' 
+            }
+            
+            foreach ($lib in $libPaths) {
+                $testPath = Join-Path $lib "steamapps\common\Counter-Strike Global Offensive"
+                if (Test-Path $testPath) {
+                    $cs2Base = $testPath
+                    Write-Host "[+] Found CS2 in custom library drive: $lib" -ForegroundColor Green
+                    break
+                }
+            }
+        }
     }
 
-    # Lấy CS2 folder làm gốc và chia 2 nhánh cfg / bin
-    $cs2Base   = Join-Path $steamRoot "steamapps\common\Counter-Strike Global Offensive"
+    if (-not $cs2Base) {
+        throw "Cannot locate CS2 installation! It's not in the default folder or any library in libraryfolders.vdf."
+    }
+
+    # Cập nhật đường dẫn gốc
     $cfgPath   = Join-Path $cs2Base "game\csgo\cfg"
     $exePath   = Join-Path $cs2Base "game\bin\win64\cs2.exe"
 
-    if (Test-Path $cs2Base) {
-        Write-Host "[+] CS2 folder detected: $cs2Base" -ForegroundColor Green
-    } else {
-        Write-Host "[!] Warning: CS2 folder not found at expected path. (Maybe installed in a custom Library Drive?)" -ForegroundColor Yellow
-    }
+    Write-Host "[+] CS2 Root detected: $cs2Base" -ForegroundColor Green
 
-    # --- STAGE 3: Deploy Config (chỉ chạy nếu người dùng chọn Y) ---
+    # --- STAGE 3: Deploy Config ---
     if ($deployConfig -eq "Y" -or $deployConfig -eq "y") {
         if (Test-Path $cfgPath) {
             Write-Host "[*] Downloading latest autoexec.cfg..." -ForegroundColor Yellow
@@ -83,7 +106,7 @@ try {
         Write-Host "[SKIP] autoexec.cfg deployment skipped by user" -ForegroundColor Gray
     }
 
-    # --- STAGE 4: DPI Override (chỉ chạy nếu người dùng chọn Y) ---
+    # --- STAGE 4: DPI Override ---
     if ($deployDPI -eq "Y" -or $deployDPI -eq "y") {
         Write-Host "[*] Applying DPI Scaling Override..." -ForegroundColor Yellow
         if (Test-Path $exePath) {
@@ -98,7 +121,7 @@ try {
         Write-Host "[SKIP] DPI Override skipped by user" -ForegroundColor Gray
     }
 
-    # --- STAGE 5: WinTweaks (BẮT BUỘC - luôn chạy) ---
+    # --- STAGE 5: WinTweaks ---
     Write-Host "`n[*] Streaming WinTweaks/optimize.ps1 (FORCED)..." -ForegroundColor Yellow
     $optimizeContent = Invoke-RestMethod -Uri "$REPO_RAW/WinTweaks/optimize.ps1" -TimeoutSec 10
     Invoke-Expression $optimizeContent
