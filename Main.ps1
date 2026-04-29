@@ -1,62 +1,69 @@
 # ==============================================================================
 # Project: CS2 InternetBar Optimizer (CIBO)
 # Component: Orchestrator Pipeline (Main.ps1)
-# Version: 1.3.3 - Ultra Lean (Reg + Process Only)
+# Version: 1.3.4 - Hybrid (Reg + Process + Manual Pick)
 # ==============================================================================
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
 $ErrorActionPreference = "Stop"
 
+# Thêm assembly để hiện hộp thoại chọn folder
+Add-Type -AssemblyName System.Windows.Forms
+
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "            VER 1.3.3 - ULTRA LEAN EDITION            " -ForegroundColor Green
+Write-Host "            VER 1.3.4 - HYBRID DETECTION              " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 try {
-    # --- STAGE 0: Check Config Version ---
-    Write-Host "[*] Checking latest autoexec.cfg version..." -ForegroundColor Gray
-    try {
-        $configRaw = Invoke-RestMethod -Uri "$REPO_RAW/CS2/autoexec.cfg" -TimeoutSec 5
-        $versionLine = ($configRaw -split "`r?`n")[1].Trim()
-        Write-Host "[+] Cloud Version: $versionLine" -ForegroundColor Green
-    } catch { Write-Host "[!] Skip version check (Offline/Timeout)" -ForegroundColor Yellow }
-
     # --- STAGE 1: User Intent ---
     $deployConfig = Read-Host "`n[?] Deploy autoexec.cfg? (Y/N)"
     $deployDPI    = Read-Host "[?] Deploy High DPI Override? (Y/N)"
 
-    # --- STAGE 2: Environment Discovery (Regedit -> Task Manager) ---
-    Write-Host "`n[*] Locating Steam Environment..." -ForegroundColor Gray
+    # --- STAGE 2: Environment Discovery ---
+    Write-Host "`n[*] Locating Steam/CS2 Environment..." -ForegroundColor Gray
     $steamRoot = $null
+    $cs2Base   = $null
 
-    # Cách 1: Quét Registry (Nhẹ nhất)
+    # 1. Nhẹ đô: Registry
     $reg = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name "SteamPath" -ErrorAction SilentlyContinue
-    if ($reg) {
-        $steamRoot = $reg.SteamPath -replace '/', '\'
-        Write-Host "[+] Found via Registry: $steamRoot" -ForegroundColor DarkGreen
+    if ($reg) { $steamRoot = $reg.SteamPath -replace '/', '\' }
+
+    # 2. Nặng đô: Task Manager (nếu registry không có hoặc sai)
+    if (-not $steamRoot -or -not (Test-Path "$steamRoot\steamapps\common\Counter-Strike Global Offensive")) {
+        $proc = Get-CimInstance Win32_Process -Filter "Name='steam.exe'" | Select-Object -First 1
+        if ($proc.ExecutablePath) { $steamRoot = Split-Path $proc.ExecutablePath -Parent }
     }
 
-    # Cách 2: Truy vấn Process từ Task Manager (Nặng đô hơn - dùng khi Reg sai)
-    if (-not (Test-Path (Join-Path $steamRoot "steamapps\common\Counter-Strike Global Offensive"))) {
-        Write-Host "[!] Default path invalid. Querying Steam Process..." -ForegroundColor Yellow
-        $proc = Get-CimInstance Win32_Process -Filter "Name='steam.exe'" | Select-Object -First 1
-        if ($proc.ExecutablePath) {
-            $steamRoot = Split-Path $proc.ExecutablePath -Parent
-            Write-Host "[+] Found via Task Manager: $steamRoot" -ForegroundColor DarkGreen
+    # Kiểm tra lại đường dẫn CS2 sau 2 bước tự động
+    if ($steamRoot) {
+        $checkPath = Join-Path $steamRoot "steamapps\common\Counter-Strike Global Offensive"
+        if (Test-Path $checkPath) { $cs2Base = $checkPath }
+    }
+
+    # 3. Phương án cuối cùng: Chọn thủ công (Manual Pick)
+    if (-not $cs2Base) {
+        Write-Host "[!] Could not auto-detect CS2. Please select folder manually..." -ForegroundColor Yellow
+        $Browser = New-Object System.Windows.Forms.FolderBrowserDialog
+        $Browser.Description = "Chọn thư mục gốc của CS2 (Thư mục 'Counter-Strike Global Offensive')"
+        $Browser.ShowNewFolderButton = $false
+        
+        $result = $Browser.ShowDialog()
+        if ($result -eq "OK") {
+            $cs2Base = $Browser.SelectedPath
+        } else {
+            throw "User cancelled folder selection. Execution aborted."
         }
     }
 
-    if (-not $steamRoot) { throw "Could not locate Steam via Registry or Process." }
-
-    # Thiết lập đường dẫn CS2
-    $cs2Base = Join-Path $steamRoot "steamapps\common\Counter-Strike Global Offensive"
+    # Xác lập các nhánh con
     $cfgPath = Join-Path $cs2Base "game\csgo\cfg"
     $exePath = Join-Path $cs2Base "game\bin\win64\cs2.exe"
 
-    # Kiểm tra cuối cùng trước khi Deploy
-    if (-not (Test-Path $cs2Base)) { 
-        throw "Steam found but CS2 folder is missing at: $cs2Base" 
-    }
+    # Kiểm tra tính hợp lệ của folder đã chọn/tìm thấy
+    if (-not (Test-Path $cfgPath)) { throw "Invalid CS2 Folder! Missing 'game\csgo\cfg'." }
+
+    Write-Host "[+] Target: $cs2Base" -ForegroundColor Green
 
     # --- STAGE 3: Deploy Config ---
     if ($deployConfig -eq "Y" -or $deployConfig -eq "y") {
@@ -67,11 +74,13 @@ try {
 
     # --- STAGE 4: DPI Override ---
     if ($deployDPI -eq "Y" -or $deployDPI -eq "y") {
-        Write-Host "[*] Applying DPI Registry Tweak..." -ForegroundColor Yellow
-        $regKey = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
-        if (-not (Test-Path $regKey)) { New-Item $regKey -Force | Out-Null }
-        New-ItemProperty -Path $regKey -Name $exePath -Value "~ DPIUNAWARE" -PropertyType String -Force | Out-Null
-        Write-Host "[SUCCESS] DPI Fixed!" -ForegroundColor Green
+        if (Test-Path $exePath) {
+            Write-Host "[*] Applying DPI Registry Tweak..." -ForegroundColor Yellow
+            $regKey = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
+            if (-not (Test-Path $regKey)) { New-Item $regKey -Force | Out-Null }
+            New-ItemProperty -Path $regKey -Name $exePath -Value "~ DPIUNAWARE" -PropertyType String -Force | Out-Null
+            Write-Host "[SUCCESS] DPI Fixed!" -ForegroundColor Green
+        }
     }
 
     # --- STAGE 5: WinTweaks ---
