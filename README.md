@@ -121,6 +121,7 @@ Cs2InternetBar/
 
 Lưu ý: File python-portable.zip được phân phối qua GitHub Releases để giảm tải repo chính.
 
+```
 🔧 Công nghệ sử dụng
 PowerShell 5.1+ (In‑Memory Execution, Registry, COM)
 Python 3.12 Embedded (portable, không cần cài đặt)
@@ -130,6 +131,7 @@ psutil – truy vết tiến trình
 pywin32 – thao tác Registry, Shortcut Windows
 requests – tải file cấu hình từ GitHub
 Steam / CS2 API (Registry Uninstall, libraryfolders.vdf)
+```
 
 🤖 Tương tác với AI
 Dự án này được thiết kế để thử nghiệm làm việc hiệu quả với các công cụ AI.
