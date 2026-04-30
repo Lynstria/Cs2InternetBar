@@ -24,39 +24,6 @@
 
 ---
 
-## 🧠 Kiến trúc hệ thống
-
-GitHub (raw)
-|
-| irm Main.ps1 | iex
-v
-+-----------+-----------+
-| PowerShell RAM |
-+-----------+-----------+
-|
-Tải Python portable (.zip, ~50MB)
-
-Giải nén vào %TEMP%
-
-Cài đặt sẵn: vdf, psutil, pywin32, requests
-|
-+--------------------+--------------------+
-| |
-FindCs2.py 7 tầng ResultCs2.py
-trả về CS2PATH |
-| 1. Tải autoexec.cfg (nếu chọn)
-| 2. Ghi DPI Override
-+--------------------+--------------------+
-|
-Tối ưu Windows
-(optimize.ps1 từ RAM)
-|
-Xóa toàn bộ %TEMP%
-|
-HOÀN TẤT
-
----
-
 ## 🚀 Quick Start
 
 **Yêu cầu duy nhất**: PowerShell chạy với quyền **Administrator**.
