@@ -1,34 +1,51 @@
 <#
 .SYNOPSIS
     CIBO Core Pipeline - Low-Latency Streaming Setup
-    Tải và chạy Python scripts trực tiếp từ GitHub, không cài file thừa.
+    Tải Python portable + thư viện từ GitHub, tự động chạy pipeline.
 #>
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
+$PYTHON_PORTABLE_URL = "https://github.com/Lynstria/Cs2InternetBar/releases/download/1.0/python-portable.zip"
 $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "            VER 2.0 - GITHUB NATIVE EXECUTION         " -ForegroundColor Green
+Write-Host "            VER 3.0 - PORTABLE PYTHON BOOTSTRAP       " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
-# Kiểm tra Python
-try {
-    $null = Get-Command python -ErrorAction Stop
-} catch {
-    Write-Host "[!] Python not found. Please install Python 3 and required libraries." -ForegroundColor Red
-    pause
+# --- Stage 0: Tải & giải nén Python portable ---
+Write-Host "`n[0] Downloading Python portable bundle..." -ForegroundColor Yellow
+$WORK_DIR = Join-Path $env:TEMP "CIBO_Bootstrap"
+if (Test-Path $WORK_DIR) { Remove-Item $WORK_DIR -Recurse -Force -ErrorAction SilentlyContinue }
+New-Item -ItemType Directory -Path $WORK_DIR -Force | Out-Null
+
+$pythonZip = Join-Path $WORK_DIR "python-portable.zip"
+Invoke-WebRequest -Uri $PYTHON_PORTABLE_URL -OutFile $pythonZip -ErrorAction Stop
+
+Write-Host "[0] Extracting Python..." -ForegroundColor Yellow
+Expand-Archive -Path $pythonZip -DestinationPath $WORK_DIR -Force
+Remove-Item $pythonZip
+
+# Tìm thư mục chứa python.exe (có thể nằm trong thư mục con)
+$pythonDir = Get-ChildItem -Path $WORK_DIR -Recurse -Filter "python.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $pythonDir) {
+    Write-Host "[!] python.exe not found in extracted bundle!" -ForegroundColor Red
     exit 1
 }
+$pythonExe = $pythonDir.FullName
+$pythonRoot = $pythonDir.Directory.FullName
 
-# --- STAGE 1: User Intent ---
+# Thêm vào PATH tạm để các script có thể dùng
+$env:PATH = "$pythonRoot;$pythonRoot\Scripts;$env:PATH"
+Write-Host "[0] Python portable ready: $pythonExe" -ForegroundColor Green
+
+# --- Stage 1: User Intent ---
 $deployConfig = Read-Host "`n[?] Deploy autoexec.cfg? (Y/N)"
 
-# --- STAGE 2: Locate CS2 ---
+# --- Stage 2: Locate CS2 ---
 Write-Host "`n[*] Locating CS2 environment..." -ForegroundColor Yellow
 
-# Tải FindCs2.py về file tạm
-$findCs2Temp = [System.IO.Path]::GetTempFileName() + ".py"
+$findCs2Temp = Join-Path $WORK_DIR "FindCs2.py"
 try {
     Invoke-WebRequest -Uri "$REPO_RAW/CS2/FindCs2.py" -OutFile $findCs2Temp -ErrorAction Stop
 } catch {
@@ -36,11 +53,9 @@ try {
     exit 1
 }
 
-# Chạy FindCs2.py và lấy đường dẫn CS2
 $cs2Base = $null
 try {
-    $pythonOutput = & python $findCs2Temp 2>&1
-    # Tìm dòng chứa "CS2PATH:" (FindCs2.py được sửa để in ra dòng này khi thành công)
+    $pythonOutput = & $pythonExe $findCs2Temp 2>&1
     foreach ($line in $pythonOutput) {
         if ($line -match "CS2PATH:(.+)") {
             $cs2Base = $Matches[1].Trim()
@@ -48,7 +63,6 @@ try {
         }
     }
     if (-not $cs2Base) {
-        # Fallback: tìm dòng "✅ Đã tìm thấy CS2 tại:"
         foreach ($line in $pythonOutput) {
             if ($line -match "Đã tìm thấy CS2 tại: (.+)") {
                 $cs2Base = $Matches[1].Trim()
@@ -59,38 +73,35 @@ try {
 } catch {
     Write-Host "[!] Error running FindCs2.py" -ForegroundColor Red
     $cs2Base = $null
-} finally {
-    Remove-Item $findCs2Temp -Force -ErrorAction SilentlyContinue
 }
 
 if (-not $cs2Base) {
-    Write-Host "[!] Could not auto-detect CS2. Manual fallback not implemented in hybrid mode." -ForegroundColor Red
+    Write-Host "[!] Could not auto-detect CS2. Exiting." -ForegroundColor Red
     exit 1
 }
 Write-Host "[+] CS2 Path: $cs2Base" -ForegroundColor Green
 
-# --- STAGE 3: Execute ResultCs2.py ---
+# --- Stage 3: Execute ResultCs2.py ---
 $resultArgs = @("--cs2-path", $cs2Base)
 if ($deployConfig -ne "Y" -and $deployConfig -ne "y") {
     $resultArgs += "--skip-config"
 }
 
-$resultCs2Temp = [System.IO.Path]::GetTempFileName() + ".py"
+$resultCs2Temp = Join-Path $WORK_DIR "ResultCs2.py"
 try {
     Invoke-WebRequest -Uri "$REPO_RAW/CS2/ResultCs2.py" -OutFile $resultCs2Temp -ErrorAction Stop
     Write-Host "[*] Running ResultCs2.py..." -ForegroundColor Yellow
-    $proc = Start-Process -FilePath python -ArgumentList "$resultCs2Temp $resultArgs" -Wait -NoNewWindow -PassThru
-    if ($proc.ExitCode -ne 0) {
-        throw "ResultCs2.py exited with code $($proc.ExitCode)"
+    & $pythonExe $resultCs2Temp $resultArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[WARNING] ResultCs2.py exited with code $LASTEXITCODE" -ForegroundColor Yellow
+    } else {
+        Write-Host "[SUCCESS] ResultCs2 tasks completed." -ForegroundColor Green
     }
-    Write-Host "[SUCCESS] ResultCs2 tasks completed." -ForegroundColor Green
 } catch {
     Write-Host "[!] ResultCs2.py failed: $_" -ForegroundColor Red
-} finally {
-    Remove-Item $resultCs2Temp -Force -ErrorAction SilentlyContinue
 }
 
-# --- STAGE 4: Optimize System ---
+# --- Stage 4: Optimize System ---
 Write-Host "`n[*] Applying Windows streaming optimizations..." -ForegroundColor Yellow
 try {
     $optimizeScript = Invoke-RestMethod -Uri "$REPO_RAW/WinTweaks/optimize.ps1"
@@ -99,7 +110,10 @@ try {
     Write-Host "[!] Optimize script error: $_" -ForegroundColor Red
 }
 
-# Kết thúc
+# --- Cleanup ---
+Write-Host "`n[*] Cleaning up temporary files..." -ForegroundColor Gray
+Remove-Item $WORK_DIR -Recurse -Force -ErrorAction SilentlyContinue
+
 Write-Host "`n======================================================" -ForegroundColor Cyan
 Write-Host " [!] PIPELINE FINISHED - READY TO PRE-FIRE" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
