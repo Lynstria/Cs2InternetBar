@@ -144,4 +144,4 @@ MIT © 2026 Lynstria.
 🏷 Trạng thái
 v1.0.0-Stable – Đã kiểm tra hoạt động trên Windows 10/11 (máy net, máy cá nhân).
 
-Made with ❤️ by Lynstria – because every millisecond counts.
+❤️ Made by Lynstria – because every millisecond counts.
