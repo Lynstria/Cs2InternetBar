@@ -24,6 +24,64 @@
 
 ---
 
+## 🧠 Kiến trúc hệ thống
+
+```
+┌─────────────────────────────────┐
+│         GitHub (Raw)            │
+│  Cs2InternetBar/Main.ps1        │
+└──────────────┬──────────────────┘
+               │
+               │ irm Main.ps1 | iex
+               ▼
+┌─────────────────────────────────┐
+│       PowerShell (RAM)          │
+│   Thực thi trực tiếp, không     │
+│   lưu file .ps1 xuống ổ đĩa    │
+└──────────────┬──────────────────┘
+               │
+               │ Tải + Giải nén
+               ▼
+┌─────────────────────────────────┐
+│    Python Portable (~50 MB)     │
+│  Giải nén vào %TEMP%            │
+│  Kèm sẵn: vdf, psutil,         │
+│  pywin32, requests              │
+└──────────────┬──────────────────┘
+               │
+      ┌────────┴────────┐
+      ▼                 ▼
+┌───────────┐    ┌───────────────┐
+│FindCs2.py │    │ ResultCs2.py  │
+│           │    │               │
+│ 7 tầng    │    │ ① Tải Config  │
+│ dò tìm    │    │    (autoexec) │
+│ CS2PATH ──┼───▶│               │
+│           │    │ ② Ghi DPI     │
+│           │    │    Override   │
+└───────────┘    └───────┬───────┘
+                         │
+                         ▼
+              ┌───────────────────┐
+              │  Optimize.ps1     │
+              │  (Từ RAM)         │
+              │  Tối ưu Windows   │
+              └────────┬──────────┘
+                       │
+                       ▼
+              ┌───────────────────┐
+              │  Dọn dẹp %TEMP%   │
+              │  Xóa Python,      │
+              │  script, file tạm │
+              └────────┬──────────┘
+                       │
+                       ▼
+              ┌───────────────────┐
+              │   HOÀN TẤT       │
+              │   Sẵn sàng game   │
+              └───────────────────┘
+```
+
 ## 🚀 Quick Start
 
 **Yêu cầu duy nhất**: PowerShell chạy với quyền **Administrator**.
