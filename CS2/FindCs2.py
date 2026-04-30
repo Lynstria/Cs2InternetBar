@@ -267,6 +267,8 @@ def find_cs2_path() -> pathlib.Path | None:
 if __name__ == "__main__":
     result = find_cs2_path()
     if result:
-        print(f"\n Tìm thấy CS2 tại: {result}")
+        print(f"\n Tìm thấy CS2 tại: {result}")   # giữ để người dùng xem
+        print(f"CS2PATH:{result}")                # thêm dòng này cho PS bắt
     else:
         print("\n Không tìm thấy CS2.")
+        print("CS2PATH:NOT_FOUND")                # không bắt buộc, nhưng đồng bộ

@@ -72,14 +72,14 @@ def override_high_dpi_scaling(exe_path: pathlib.Path) -> bool:
         return False
 
 # --- Hàm chính ---
-def main():
-    print("===== ResultCs2.py =====")
-    # Bước 1: Lấy đường dẫn CS2 từ FindCs2.py (lưu vào RAM)
-    print("Đang tìm đường dẫn CS2...")
-    cs2_root = FindCs2.find_cs2_path()
-    if not cs2_root:
-        print("Không tìm thấy CS2. Kết thúc.")
-        sys.exit(1)
+def main(cs2_root=None, skip_config=False):
+    # Bỏ phần tìm CS2 (vì đã được truyền vào)
+    if cs2_root is None:
+        # Fallback nếu không có tham số
+        cs2_root = FindCs2.find_cs2_path()
+        if not cs2_root:
+            print("Không tìm thấy CS2. Kết thúc.")
+            sys.exit(1)
 
     print(f"Đã xác định CS2 tại: {cs2_root}")
 
