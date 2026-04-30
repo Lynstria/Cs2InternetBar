@@ -30,10 +30,9 @@
 
 Dán lệnh sau vào cửa sổ PowerShell (Admin) và nhấn Enter:
 
-```powershell
-irm https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main/Main.ps1 | iex
-
-
+> ```powershell
+> irm https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main/Main.ps1 | iex
+> ```
 
 Pipeline sẽ hỏi bạn 1 câu hỏi duy nhất:
 
