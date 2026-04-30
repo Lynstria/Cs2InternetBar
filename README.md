@@ -44,6 +44,7 @@ Chọn N → chỉ áp dụng DPI Override và tối ưu hệ thống, bỏ qua 
 
 Sau vài giây (tuỳ tốc độ mạng để tải Python portable ~50MB).
 
+```powershell
 🗂 Cấu trúc Repository
 Cs2InternetBar/
 ├── Main.ps1                 # Bộ điều phối chính (The Orchestrator)
@@ -58,6 +59,7 @@ Cs2InternetBar/
 │   └── python-portable.zip  # Python portable + sẵn thư viện (đính kèm Release)
 ├── requirements.txt         # Danh sách thư viện Python (cho dev)
 └── README.md
+```
 
 Lưu ý: File python-portable.zip được phân phối qua GitHub Releases để giảm tải repo chính.
 
