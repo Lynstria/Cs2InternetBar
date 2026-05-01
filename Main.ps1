@@ -1,21 +1,20 @@
 <#
 .SYNOPSIS
-    CIBO Core Pipeline - Low-Latency Streaming Setup
-    Tải Python portable + thư viện từ GitHub, tự động chạy pipeline.
+    CIBO Core Pipeline v3.1 - Silent & Clean Execution
 #>
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
 $PYTHON_PORTABLE_URL = "https://github.com/Lynstria/Cs2InternetBar/releases/download/1.0/python-portable.zip"
-$ErrorActionPreference = "Continue"   # Không Stop để tránh tắt bất ngờ
-$ProgressPreference = "SilentlyContinue"
+$ErrorActionPreference = "Continue"
+$ProgressPreference = "SilentlyContinue"   # ← TẮT TOÀN BỘ PROGRESS BAR
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "            VER 3.0 - PORTABLE PYTHON BOOTSTRAP       " -ForegroundColor Green
+Write-Host "            VER 3.1 - SILENT BOOTSTRAP                " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 # --- Stage 0: Tải & giải nén Python portable ---
-Write-Host "`n[0] Downloading Python portable bundle..." -ForegroundColor Yellow
+Write-Host "`n[0] Downloading Python portable (~50MB)..." -ForegroundColor Yellow
 $WORK_DIR = Join-Path $env:TEMP "CIBO_Bootstrap"
 if (Test-Path $WORK_DIR) { Remove-Item $WORK_DIR -Recurse -Force -ErrorAction SilentlyContinue }
 New-Item -ItemType Directory -Path $WORK_DIR -Force | Out-Null
@@ -30,6 +29,7 @@ try {
 }
 
 Write-Host "[0] Extracting Python..." -ForegroundColor Yellow
+# Giải nén không hiện progress
 Expand-Archive -Path $pythonZip -DestinationPath $WORK_DIR -Force
 Remove-Item $pythonZip
 
@@ -47,7 +47,7 @@ Write-Host "[0] Python portable ready: $pythonExe" -ForegroundColor Green
 # --- Stage 1: User Intent ---
 $deployConfig = Read-Host "`n[?] Deploy autoexec.cfg? (Y/N)"
 
-# --- Stage 2: Locate CS2 (gọi FindCs2.py với chế độ non-interactive) ---
+# --- Stage 2: Locate CS2 (non-interactive) ---
 Write-Host "`n[*] Locating CS2 environment..." -ForegroundColor Yellow
 
 $findCs2Temp = Join-Path $WORK_DIR "FindCs2.py"
@@ -61,7 +61,6 @@ try {
 
 $cs2Base = $null
 try {
-    # Chạy với --non-interactive để bỏ qua tầng 7 nhập tay
     $pythonOutput = & $pythonExe $findCs2Temp --non-interactive 2>&1
     foreach ($line in $pythonOutput) {
         if ($line -match "CS2PATH:(.+)") {
@@ -83,13 +82,12 @@ try {
 
 if (-not $cs2Base) {
     Write-Host "[!] Could not auto-detect CS2." -ForegroundColor Red
-    # Bạn có thể thêm fallback khác ở đây (ví dụ: hỏi lại user)
     pause
     exit 1
 }
 Write-Host "[+] CS2 Path: $cs2Base" -ForegroundColor Green
 
-# --- Stage 3: Execute ResultCs2.py (với tham số) ---
+# --- Stage 3: Execute ResultCs2.py ---
 $resultArgs = @("--cs2-path", $cs2Base)
 if ($deployConfig -ne "Y" -and $deployConfig -ne "y") {
     $resultArgs += "--skip-config"
@@ -99,11 +97,11 @@ $resultCs2Temp = Join-Path $WORK_DIR "ResultCs2.py"
 try {
     Invoke-WebRequest -Uri "$REPO_RAW/CS2/ResultCs2.py" -OutFile $resultCs2Temp -ErrorAction Stop
     Write-Host "[*] Running ResultCs2.py..." -ForegroundColor Yellow
-    & $pythonExe $resultCs2Temp $resultArgs
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[WARNING] ResultCs2.py exited with code $LASTEXITCODE" -ForegroundColor Yellow
+    $proc = Start-Process -FilePath $pythonExe -ArgumentList "$resultCs2Temp $resultArgs" -Wait -NoNewWindow -PassThru
+    if ($proc.ExitCode -ne 0) {
+        Write-Host "[WARNING] ResultCs2.py exited with code $($proc.ExitCode)" -ForegroundColor Yellow
     } else {
-        Write-Host "[SUCCESS] ResultCs2 tasks completed." -ForegroundColor Green
+        Write-Host "[SUCCESS] Config & DPI applied." -ForegroundColor Green
     }
 } catch {
     Write-Host "[!] ResultCs2.py failed: $_" -ForegroundColor Red
@@ -125,5 +123,4 @@ Remove-Item $WORK_DIR -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "`n======================================================" -ForegroundColor Cyan
 Write-Host " [!] PIPELINE FINISHED - READY TO PRE-FIRE" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
-# Đảm bảo người dùng đọc được kết quả
 pause
