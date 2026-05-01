@@ -4,6 +4,7 @@ import pathlib
 import winreg
 import concurrent.futures
 import traceback
+import argparse
 
 # --- Thư viện bên thứ ba (Cần pip install) ---
 # pip install vdf
@@ -265,10 +266,21 @@ def find_cs2_path() -> pathlib.Path | None:
     )
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--non-interactive', action='store_true', help='Bỏ qua nhập tay')
+    args = parser.parse_args()
+
+    # Nếu non-interactive, tạm thời vô hiệu hóa tầng 7
+    if args.non_interactive:
+        # Gán lại hàm find_cs2_by_manual_input để trả về None ngay lập tức
+        global find_cs2_by_manual_input
+        original_manual = find_cs2_by_manual_input
+        find_cs2_by_manual_input = lambda: None
+
     result = find_cs2_path()
     if result:
-        print(f"\n Tìm thấy CS2 tại: {result}")   # giữ để người dùng xem
-        print(f"CS2PATH:{result}")                # thêm dòng này cho PS bắt
+        print(f"\n Tìm thấy CS2 tại: {result}")
+        print(f"CS2PATH:{result}")
     else:
         print("\n Không tìm thấy CS2.")
-        print("CS2PATH:NOT_FOUND")                # không bắt buộc, nhưng đồng bộ
+        print("CS2PATH:NOT_FOUND")

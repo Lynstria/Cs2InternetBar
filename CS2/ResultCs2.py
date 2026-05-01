@@ -4,6 +4,7 @@ import pathlib
 import winreg
 import shutil
 import traceback
+import argparse
 
 # Import FindCs2 (đảm bảo file FindCs2.py cùng thư mục)
 try:
@@ -120,4 +121,10 @@ def main(cs2_root=None, skip_config=False):
     # (Tùy chọn) Giải phóng RAM – không cần thiết, biến cục bộ sẽ tự giải phóng.
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--cs2-path', required=True, help='CS2 root folder')
+    parser.add_argument('--skip-config', action='store_true', help='Skip downloading autoexec.cfg')
+    args = parser.parse_args()
+    
+    main(cs2_root=pathlib.Path(args.cs2_path), skip_config=args.skip_config)
