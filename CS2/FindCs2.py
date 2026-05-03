@@ -9,7 +9,7 @@ import argparse
 # --- Thư viện bên thứ ba (Cần pip install) ---
 # pip install vdf
 import vdf
-# pip install psutil
+import vdf# pip install psutil
 import psutil
 # pip install pywin32 (cần cho win32api, win32con, win32com)
 import win32api
@@ -301,19 +301,13 @@ def find_cs2_path() -> pathlib.Path | None:
 
 
 if __name__ == "__main__":
-    result = find_cs2_path()
-    if result:
-        print(f"\n Tìm thấy CS2 tại: {result}")
-        print(f"CS2PATH:{result}")
-    else:
-        print("\n Không tìm thấy CS2.")
-        print("CS2PATH:NOT_FOUND")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--non-interactive', action='store_true',
+                        help='Tắt hộp thoại chọn folder (tầng 7)')
+    args = parser.parse_args()
 
-    # Nếu non-interactive, tạm thời vô hiệu hóa tầng 7
+    # Nếu chạy non-interactive thì vô hiệu hóa tầng 7 trước
     if args.non_interactive:
-        # Gán lại hàm find_cs2_by_manual_input để trả về None ngay lập tức
-        global find_cs2_by_manual_input
-        original_manual = find_cs2_by_manual_input
         find_cs2_by_manual_input = lambda: None
 
     result = find_cs2_path()
