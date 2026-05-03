@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    CIBO Core Pipeline v3.6 - Self-Healing Pip for Bare Metal
+    CIBO Core Pipeline v3.7 - Fixed pip argument splatting
 #>
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
@@ -10,7 +10,7 @@ $ProgressPreference = "SilentlyContinue"
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "            VER 3.6 - SELF-HEALING PIP                " -ForegroundColor Green
+Write-Host "            VER 3.7 - PIP ARGUMENTS FIXED            " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 # Stage 0: Tải & giải nén Python portable
@@ -47,7 +47,6 @@ $pythonRoot = $pythonDir.Directory.FullName
 function Repair-Pip {
     Write-Host "[*] Attempting to repair pip..." -ForegroundColor Yellow
     try {
-        # Thử ensurepip có sẵn
         & $pythonExe -m ensurepip --upgrade 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[+] Pip repaired via ensurepip." -ForegroundColor Green
@@ -55,7 +54,6 @@ function Repair-Pip {
         }
     } catch {}
 
-    # Nếu không được, tải get-pip.py
     $getPip = Join-Path $WORK_DIR "get-pip.py"
     try {
         Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPip -ErrorAction Stop
@@ -70,32 +68,36 @@ function Repair-Pip {
     return $false
 }
 
-# Cài thư viện cần thiết
+# Cài thư viện cần thiết (dùng mảng arguments)
 Write-Host "[0] Installing required Python modules (vdf, psutil, pywin32, requests)..." -ForegroundColor Yellow
-$modules = @("vdf", "psutil", "pywin32", "requests")
-$installCmd = "--quiet --disable-pip-version-check --target `"$pythonRoot\Lib\site-packages`" $modules"
+$pipArgs = @(
+    "-m", "pip", "install",
+    "--quiet",
+    "--disable-pip-version-check",
+    "--target", "$pythonRoot\Lib\site-packages",
+    "vdf", "psutil", "pywin32", "requests"
+)
 $pipOk = $false
 
-try {
-    & $pythonExe -m pip install $installCmd 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        $pipOk = $true
-    } else {
-        throw "pip install failed with code $LASTEXITCODE"
-    }
-} catch {
+function Invoke-PipInstall {
+    param([string]$PythonPath)
+    & $PythonPath @pipArgs 2>&1
+    return $LASTEXITCODE -eq 0
+}
+
+if (Invoke-PipInstall -PythonPath $pythonExe) {
+    $pipOk = $true
+} else {
     Write-Host "[!] Initial pip install failed. Trying to repair pip..." -ForegroundColor Yellow
     if (Repair-Pip) {
         Write-Host "[*] Retrying module installation..." -ForegroundColor Yellow
-        try {
-            & $pythonExe -m pip install $installCmd 2>&1
-            if ($LASTEXITCODE -eq 0) { $pipOk = $true }
-        } catch {}
+        if (Invoke-PipInstall -PythonPath $pythonExe) {
+            $pipOk = $true
+        }
     }
 }
 
 if (-not $pipOk) {
-    # Cuối cùng, thử tìm Python hệ thống (nếu có)
     $systemPython = (Get-Command python.exe -ErrorAction SilentlyContinue).Source
     if ($systemPython) {
         $pythonExe = $systemPython
@@ -110,7 +112,7 @@ if (-not $pipOk) {
     Write-Host "[0] Modules installed into portable Python." -ForegroundColor Green
 }
 
-# Lúc này mới thêm PATH để dùng các script
+# Lúc này mới thêm PATH
 $env:PATH = "$pythonRoot;$pythonRoot\Scripts;$env:PATH"
 $env:PYTHONIOENCODING = "utf-8"
 $env:PYTHONUTF8 = 1
