@@ -1,16 +1,16 @@
 <#
 .SYNOPSIS
-    CIBO Core Pipeline v3.1 - Silent & Clean Execution
+    CIBO Core Pipeline v3.2 - Robust with GUI Folder Fallback
 #>
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
 $PYTHON_PORTABLE_URL = "https://github.com/Lynstria/Cs2InternetBar/releases/download/1.0/python-portable.zip"
 $ErrorActionPreference = "Continue"
-$ProgressPreference = "SilentlyContinue"   # ← TẮT TOÀN BỘ PROGRESS BAR
+$ProgressPreference = "SilentlyContinue"   # Tắt thanh tiến trình gây nhiễu
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "            VER 3.1 - SILENT BOOTSTRAP                " -ForegroundColor Green
+Write-Host "            VER 3.2 - GUI FALLBACK ENABLED            " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 # --- Stage 0: Tải & giải nén Python portable ---
@@ -29,7 +29,6 @@ try {
 }
 
 Write-Host "[0] Extracting Python..." -ForegroundColor Yellow
-# Giải nén không hiện progress
 Expand-Archive -Path $pythonZip -DestinationPath $WORK_DIR -Force
 Remove-Item $pythonZip
 
@@ -47,8 +46,8 @@ Write-Host "[0] Python portable ready: $pythonExe" -ForegroundColor Green
 # --- Stage 1: User Intent ---
 $deployConfig = Read-Host "`n[?] Deploy autoexec.cfg? (Y/N)"
 
-# --- Stage 2: Locate CS2 (non-interactive) ---
-Write-Host "`n[*] Locating CS2 environment..." -ForegroundColor Yellow
+# --- Stage 2: Locate CS2 (tự động + hộp thoại nếu cần) ---
+Write-Host "`n[*] Locating CS2 (auto-detection + folder picker fallback)..." -ForegroundColor Yellow
 
 $findCs2Temp = Join-Path $WORK_DIR "FindCs2.py"
 try {
@@ -61,7 +60,8 @@ try {
 
 $cs2Base = $null
 try {
-    $pythonOutput = & $pythonExe $findCs2Temp --non-interactive 2>&1
+    # Gọi FindCs2.py không truyền --non-interactive, để nó tự động hoặc hiện Folder Browser khi cần
+    $pythonOutput = & $pythonExe $findCs2Temp 2>&1
     foreach ($line in $pythonOutput) {
         if ($line -match "CS2PATH:(.+)") {
             $cs2Base = $Matches[1].Trim()
@@ -81,7 +81,8 @@ try {
 }
 
 if (-not $cs2Base) {
-    Write-Host "[!] Could not auto-detect CS2." -ForegroundColor Red
+    # Nếu vẫn không có (người dùng huỷ hộp thoại), thông báo và thoát
+    Write-Host "[!] CS2 not found. Installation cancelled." -ForegroundColor Red
     pause
     exit 1
 }
@@ -97,9 +98,9 @@ $resultCs2Temp = Join-Path $WORK_DIR "ResultCs2.py"
 try {
     Invoke-WebRequest -Uri "$REPO_RAW/CS2/ResultCs2.py" -OutFile $resultCs2Temp -ErrorAction Stop
     Write-Host "[*] Running ResultCs2.py..." -ForegroundColor Yellow
-    $proc = Start-Process -FilePath $pythonExe -ArgumentList "$resultCs2Temp $resultArgs" -Wait -NoNewWindow -PassThru
-    if ($proc.ExitCode -ne 0) {
-        Write-Host "[WARNING] ResultCs2.py exited with code $($proc.ExitCode)" -ForegroundColor Yellow
+    & $pythonExe $resultCs2Temp $resultArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[WARNING] ResultCs2.py exited with code $LASTEXITCODE" -ForegroundColor Yellow
     } else {
         Write-Host "[SUCCESS] Config & DPI applied." -ForegroundColor Green
     }
