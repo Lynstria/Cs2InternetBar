@@ -1,16 +1,16 @@
 <#
 .SYNOPSIS
-    CIBO Core Pipeline v3.2 - Robust with GUI Folder Fallback
+    CIBO Core Pipeline v3.3 - UTF-8 Safe Execution
 #>
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
 $PYTHON_PORTABLE_URL = "https://github.com/Lynstria/Cs2InternetBar/releases/download/1.0/python-portable.zip"
 $ErrorActionPreference = "Continue"
-$ProgressPreference = "SilentlyContinue"   # Tắt thanh tiến trình gây nhiễu
+$ProgressPreference = "SilentlyContinue"
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "            VER 3.2 - GUI FALLBACK ENABLED            " -ForegroundColor Green
+Write-Host "            VER 3.3 - UTF-8 ROBUST PIPELINE           " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 # --- Stage 0: Tải & giải nén Python portable ---
@@ -41,6 +41,11 @@ if (-not $pythonDir) {
 $pythonExe = $pythonDir.FullName
 $pythonRoot = $pythonDir.Directory.FullName
 $env:PATH = "$pythonRoot;$pythonRoot\Scripts;$env:PATH"
+
+# 🔥 Buộc Python dùng UTF-8 khi in ra console
+$env:PYTHONIOENCODING = "utf-8"
+$env:PYTHONUTF8 = 1
+
 Write-Host "[0] Python portable ready: $pythonExe" -ForegroundColor Green
 
 # --- Stage 1: User Intent ---
@@ -60,7 +65,6 @@ try {
 
 $cs2Base = $null
 try {
-    # Gọi FindCs2.py không truyền --non-interactive, để nó tự động hoặc hiện Folder Browser khi cần
     $pythonOutput = & $pythonExe $findCs2Temp 2>&1
     foreach ($line in $pythonOutput) {
         if ($line -match "CS2PATH:(.+)") {
@@ -70,7 +74,7 @@ try {
     }
     if (-not $cs2Base) {
         foreach ($line in $pythonOutput) {
-            if ($line -match "Đã tìm thấy CS2 tại: (.+)") {
+            if ($line -match "Da tim thay CS2 tai: (.+)") {
                 $cs2Base = $Matches[1].Trim()
                 break
             }
@@ -80,8 +84,7 @@ try {
     Write-Host "[!] Error running FindCs2.py" -ForegroundColor Red
 }
 
-if (-not $cs2Base) {
-    # Nếu vẫn không có (người dùng huỷ hộp thoại), thông báo và thoát
+if (-not $cs2Base -or $cs2Base -eq "NOT_FOUND") {
     Write-Host "[!] CS2 not found. Installation cancelled." -ForegroundColor Red
     pause
     exit 1
