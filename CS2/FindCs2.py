@@ -234,23 +234,57 @@ def find_cs2_by_libraries_on_drives() -> pathlib.Path | None:
     print("Tầng 6: Không tìm thấy.")
     return None
 
-# --- Tầng 7: Thủ công ---
+# --- Tầng 7: Thủ công bằng Folder Browser (GUI) ---
 def find_cs2_by_manual_input() -> pathlib.Path | None:
-    print("\nTầng 7: Yêu cầu nhập tay đường dẫn thư mục Counter-Strike Global Offensive.")
-    print("Ví dụ: C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive")
-    while True:
-        user_input = input("Nhập đường dẫn (hoặc 'q' để thoát): ").strip()
-        if user_input.lower() == 'q':
-            return None
-        base = pathlib.Path(user_input)
-        if base.is_dir():
-            result = _validate_cs2_path(base)
-            if result:
-                return result
-            else:
-                print("Đường dẫn không chứa game/bin/win64/cs2.exe.")
+    """
+    Hiển thị hộp thoại chọn thư mục nếu các tầng tự động thất bại.
+    Không bao giờ chặn stdin – an toàn cho mọi môi trường.
+    """
+    print("\nTầng 7: Không tìm thấy tự động. Đang mở hộp thoại chọn thư mục...")
+    try:
+        # Sử dụng Shell.Application để hiển thị BrowseForFolder
+        shell = win32com.client.Dispatch("Shell.Application")
+        folder = shell.BrowseForFolder(
+            0, 
+            "Hãy chọn thư mục gốc của CS2 (Counter-Strike Global Offensive)", 
+            0x0001 | 0x0010,  # BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE
+            0x11  # Start in My Computer
+        )
+        if folder is not None:
+            selected_path = pathlib.Path(folder.Self.Path)
+            # Kiểm tra nếu đây là thư mục gốc CS2
+            if _validate_cs2_path(selected_path):
+                return selected_path
+            # Đôi khi người dùng chọn nhầm thư mục cha (vd D:\Games)
+            # Thử kiểm tra bên trong xem có "Counter-Strike Global Offensive" không
+            potential = selected_path / "Counter-Strike Global Offensive"
+            if potential.is_dir() and _validate_cs2_path(potential):
+                return potential
+            # Thử thêm "steamapps/common/Counter-Strike Global Offensive" nếu chọn SteamLibrary
+            potential2 = selected_path / "steamapps/common/Counter-Strike Global Offensive"
+            if potential2.is_dir() and _validate_cs2_path(potential2):
+                return potential2
+            print("Thư mục đã chọn không chứa CS2. Hãy thử lại.")
+            return find_cs2_by_manual_input()  # Gọi lại nếu chọn sai
         else:
-            print("Thư mục không tồn tại.")
+            print("Người dùng đã hủy chọn folder.")
+            return None
+    except Exception as e:
+        print(f"Lỗi hiển thị hộp thoại: {e}. Thử nhập tay (fallback)...")
+        # Fallback cuối cùng: nhập console (nếu có terminal)
+        while True:
+            user_input = input("Nhập đường dẫn (hoặc 'q' để thoát): ").strip()
+            if user_input.lower() == 'q':
+                return None
+            base = pathlib.Path(user_input)
+            if base.is_dir():
+                result = _validate_cs2_path(base)
+                if result:
+                    return result
+                print("Đường dẫn không chứa game/bin/win64/cs2.exe.")
+            else:
+                print("Thư mục không tồn tại.")
+
 
 # --- Hàm điều phối chính ---
 def find_cs2_path() -> pathlib.Path | None:
@@ -262,13 +296,18 @@ def find_cs2_path() -> pathlib.Path | None:
         find_cs2_by_shortcuts() or
         find_cs2_by_known_paths() or
         find_cs2_by_libraries_on_drives() or
-        find_cs2_by_manual_input()
+        find_cs2_by_manual_input()          # Luôn chạy nếu các tầng trên None
     )
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--non-interactive', action='store_true', help='Bỏ qua nhập tay')
-    args = parser.parse_args()
+    result = find_cs2_path()
+    if result:
+        print(f"\n Tìm thấy CS2 tại: {result}")
+        print(f"CS2PATH:{result}")
+    else:
+        print("\n Không tìm thấy CS2.")
+        print("CS2PATH:NOT_FOUND")
 
     # Nếu non-interactive, tạm thời vô hiệu hóa tầng 7
     if args.non_interactive:
