@@ -2,16 +2,12 @@ import os
 import sys
 import pathlib
 import winreg
-import concurrent.futures
 import traceback
 import argparse
 
-# --- Thư viện bên thứ ba (Cần pip install) ---
-# pip install vdf
+# --- Thư viện bên thứ ba ---
 import vdf
-import vdf# pip install psutil
 import psutil
-# pip install pywin32 (cần cho win32api, win32con, win32com)
 import win32api
 import win32con
 import win32com.client
@@ -306,7 +302,6 @@ if __name__ == "__main__":
                         help='Tắt hộp thoại chọn folder (tầng 7)')
     args = parser.parse_args()
 
-    # Nếu chạy non-interactive thì vô hiệu hóa tầng 7 trước
     if args.non_interactive:
         find_cs2_by_manual_input = lambda: None
 
