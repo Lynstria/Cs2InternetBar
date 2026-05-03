@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    CIBO Core Pipeline v3.4 - Robust Execution & Dependency Fix
+    CIBO Core Pipeline v3.6 - Self-Healing Pip for Bare Metal
 #>
 
 $REPO_RAW = "https://raw.githubusercontent.com/Lynstria/Cs2InternetBar/main"
@@ -10,7 +10,7 @@ $ProgressPreference = "SilentlyContinue"
 
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "      CIBO CORE - LOW-LATENCY STREAMING PIPELINE      " -ForegroundColor Cyan
-Write-Host "            VER 3.4 - DEPENDENCY AUTO-FIX             " -ForegroundColor Green
+Write-Host "            VER 3.6 - SELF-HEALING PIP                " -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Cyan
 
 # Stage 0: Tải & giải nén Python portable
@@ -41,28 +41,79 @@ if (-not $pythonDir) {
 $pythonExe = $pythonDir.FullName
 $pythonRoot = $pythonDir.Directory.FullName
 
-# Cập nhật PATH
-$env:PATH = "$pythonRoot;$pythonRoot\Scripts;$env:PATH"
+# Chưa thêm PATH vào hệ thống
 
-# Cài đặt các thư viện bắt buộc vào portable Python
+# --- Hàm sửa pip nếu bị lỗi ---
+function Repair-Pip {
+    Write-Host "[*] Attempting to repair pip..." -ForegroundColor Yellow
+    try {
+        # Thử ensurepip có sẵn
+        & $pythonExe -m ensurepip --upgrade 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[+] Pip repaired via ensurepip." -ForegroundColor Green
+            return $true
+        }
+    } catch {}
+
+    # Nếu không được, tải get-pip.py
+    $getPip = Join-Path $WORK_DIR "get-pip.py"
+    try {
+        Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPip -ErrorAction Stop
+        & $pythonExe $getPip --no-setuptools --no-wheel 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[+] Pip installed via get-pip.py." -ForegroundColor Green
+            return $true
+        }
+    } catch {
+        Write-Host "[-] get-pip.py download failed." -ForegroundColor Red
+    }
+    return $false
+}
+
+# Cài thư viện cần thiết
 Write-Host "[0] Installing required Python modules (vdf, psutil, pywin32, requests)..." -ForegroundColor Yellow
+$modules = @("vdf", "psutil", "pywin32", "requests")
+$installCmd = "--quiet --disable-pip-version-check --target `"$pythonRoot\Lib\site-packages`" $modules"
+$pipOk = $false
+
 try {
-    & $pythonExe -m pip install --quiet --disable-pip-version-check --target "$pythonRoot\Lib\site-packages" vdf psutil pywin32 requests
-    if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
-    Write-Host "[0] Dependencies installed." -ForegroundColor Green
+    & $pythonExe -m pip install $installCmd 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $pipOk = $true
+    } else {
+        throw "pip install failed with code $LASTEXITCODE"
+    }
 } catch {
-    Write-Host "[!] Failed to install Python packages. Using system Python if available..." -ForegroundColor Yellow
-    # Fallback: thử dùng python hệ thống nếu có
-    $pythonExe = (Get-Command python.exe -ErrorAction SilentlyContinue).Source
-    if (-not $pythonExe) {
-        Write-Host "[!] No Python available. Exiting." -ForegroundColor Red
+    Write-Host "[!] Initial pip install failed. Trying to repair pip..." -ForegroundColor Yellow
+    if (Repair-Pip) {
+        Write-Host "[*] Retrying module installation..." -ForegroundColor Yellow
+        try {
+            & $pythonExe -m pip install $installCmd 2>&1
+            if ($LASTEXITCODE -eq 0) { $pipOk = $true }
+        } catch {}
+    }
+}
+
+if (-not $pipOk) {
+    # Cuối cùng, thử tìm Python hệ thống (nếu có)
+    $systemPython = (Get-Command python.exe -ErrorAction SilentlyContinue).Source
+    if ($systemPython) {
+        $pythonExe = $systemPython
+        $pythonRoot = Split-Path $systemPython -Parent
+        Write-Host "[+] Using system Python: $pythonExe" -ForegroundColor Green
+    } else {
+        Write-Host "[!] No Python with required modules available. Exiting." -ForegroundColor Red
         pause
         exit 1
     }
+} else {
+    Write-Host "[0] Modules installed into portable Python." -ForegroundColor Green
 }
+
+# Lúc này mới thêm PATH để dùng các script
+$env:PATH = "$pythonRoot;$pythonRoot\Scripts;$env:PATH"
 $env:PYTHONIOENCODING = "utf-8"
 $env:PYTHONUTF8 = 1
-
 Write-Host "[0] Python ready: $pythonExe" -ForegroundColor Green
 
 # Stage 1: User Intent
@@ -70,7 +121,6 @@ $deployConfig = Read-Host "`n[?] Deploy autoexec.cfg? (Y/N)"
 
 # Stage 2: Locate CS2
 Write-Host "`n[*] Locating CS2 (auto-detection + folder picker fallback)..." -ForegroundColor Yellow
-
 $findCs2Temp = Join-Path $WORK_DIR "FindCs2.py"
 try {
     Invoke-WebRequest -Uri "$REPO_RAW/CS2/FindCs2.py" -OutFile $findCs2Temp -ErrorAction Stop
@@ -81,16 +131,12 @@ try {
 }
 
 $cs2Base = $null
-try {
-    $pythonOutput = & $pythonExe $findCs2Temp 2>&1
-    foreach ($line in $pythonOutput) {
-        if ($line -match "CS2PATH:(.+)") {
-            $cs2Base = $Matches[1].Trim()
-            break
-        }
+$pythonOutput = & $pythonExe $findCs2Temp 2>&1
+foreach ($line in $pythonOutput) {
+    if ($line -match "CS2PATH:(.+)") {
+        $cs2Base = $Matches[1].Trim()
+        break
     }
-} catch {
-    Write-Host "[!] Error running FindCs2.py" -ForegroundColor Red
 }
 
 if (-not $cs2Base -or $cs2Base -eq "NOT_FOUND") {
@@ -126,7 +172,6 @@ $optimizeTemp = Join-Path $WORK_DIR "optimize.ps1"
 try {
     Invoke-WebRequest -Uri "$REPO_RAW/WinTweaks/optimize.ps1" -OutFile $optimizeTemp -ErrorAction Stop
     Write-Host "[*] Running optimize.ps1 (Administrator required)..." -ForegroundColor Yellow
-    # Chạy file tạm thay vì Invoke-Expression
     & $optimizeTemp
     Write-Host "[+] Optimization complete." -ForegroundColor Green
 } catch {
