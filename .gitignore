@@ -24,7 +24,9 @@ CIBO_Bootstrap/
 Thumbs.db
 Desktop.ini
 .DS_Store
+.gitignore
 
 # IDE
 .vscode/settings.json
 !.vscode/
+CLAUDE.md
